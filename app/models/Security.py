@@ -1,31 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
-
-from sqlalchemy import Float, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import List
 
 from app.db import db
-
-if TYPE_CHECKING:
-    # imports that are used only for type checking to avoid circular dependencies
-    from app.models import Investment, Transaction
 
 
 class Security(db.Model):
     __tablename__ = 'security'
-    ticker: Mapped[str] = mapped_column(String(10), primary_key=True)
-    issuer: Mapped[str] = mapped_column(String(100), nullable=False)
-    price: Mapped[float] = mapped_column(Float, nullable=False)
+    ticker = db.Column(db.String(10), primary_key=True)
+    issuer = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Float, nullable=False)
 
-    investments: Mapped[List['Investment']] = relationship('Investment', back_populates='security', lazy='selectin')
+    investments = db.relationship('Investment', back_populates='security', lazy='selectin')
 
-    transactions: Mapped[List['Transaction']] = relationship('Transaction', back_populates='security', lazy='selectin')
-
-    # this is needed because PyLance cannot infer the constructor signature from SQLAlchemy's Mapped class
-    if TYPE_CHECKING:
-
-        def __init__(self, *, ticker: str, issuer: str, price: float) -> None: ...
+    transactions = db.relationship('Transaction', back_populates='security', lazy='selectin')
 
     def __str__(self):
         return f'<Security: ticker={self.ticker}; issuer={self.issuer}; price={self.price}; #investments={len(self.investments)}>'

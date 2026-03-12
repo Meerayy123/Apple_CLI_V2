@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.exc import IntegrityError
 
@@ -10,7 +10,7 @@ class UnsupportedUserOperationError(Exception):
     pass
 
 
-def get_user_by_username(username: str) -> User | None:
+def get_user_by_username(username: str) -> Optional[User]:
     try:
         if not username:
             raise UnsupportedUserOperationError('Username cannot be empty')

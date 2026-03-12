@@ -1,47 +1,27 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
-
-from sqlalchemy import Float, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import List
 
 from app.db import db
-
-if TYPE_CHECKING:
-    # imports that are used only for type checking to avoid circular dependencies
-    from app.models import Portfolio, Transaction
 
 
 class User(db.Model):
     __tablename__ = 'user'
 
-    username: Mapped[str] = mapped_column(String(30), primary_key=True)
-    password: Mapped[str] = mapped_column(String(30), nullable=False)
-    firstname: Mapped[str] = mapped_column(String(30), nullable=False)
-    lastname: Mapped[str] = mapped_column(String(30), nullable=False)
-    balance: Mapped[float] = mapped_column(Float, nullable=False)
+    username = db.Column(db.String(30), primary_key=True)
+    password = db.Column(db.String(30), nullable=False)
+    firstname = db.Column(db.String(30), nullable=False)
+    lastname = db.Column(db.String(30), nullable=False)
+    balance = db.Column(db.Float, nullable=False)
 
-    portfolios: Mapped[List['Portfolio']] = relationship('Portfolio', back_populates='user', lazy='selectin')
-    transactions: Mapped[List['Transaction']] = relationship('Transaction', back_populates='user', lazy='selectin')
-
-    # this is needed because PyLance cannot infer the constructor signature from SQLAlchemy's Mapped class
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            username: str,
-            password: str,
-            firstname: str,
-            lastname: str,
-            balance: float,
-        ) -> None: ...
+    portfolios = db.relationship('Portfolio', back_populates='user', lazy='selectin')
+    transactions = db.relationship('Transaction', back_populates='user', lazy='selectin')
 
     def __str__(self):
         return (
             f"<User: username='{self.username}'; "
             f"name='{self.firstname} {self.lastname}'; "
-            f'#portfolios={len(self.portfolios)}; '
+            f"#portfolios={len(self.portfolios)}; "
             f'balance={self.balance})'
         )
 

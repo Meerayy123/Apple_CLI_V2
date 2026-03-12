@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from app.db import db
 from app.models import Portfolio, User
@@ -45,7 +45,7 @@ def get_all_portfolios() -> List[Portfolio]:
         raise PortfolioOperationError(f'Failed to retrieve portfolios due to error: {str(e)}')
 
 
-def get_portfolio_by_id(portfolio_id: int) -> Portfolio | None:
+def get_portfolio_by_id(portfolio_id: int) -> Optional[Portfolio]:
     try:
         portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
         return portfolio

@@ -2,71 +2,83 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import os
+from typing import Generator
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-from typing import Generator
 
-import app.database as db
 import pytest
-from app.database import Base
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from flask import Flask
+from sqlalchemy import event
 
+from app import create_app, cache
+from app.config import get_config
+from app.db import db as _db
 from app.models import Security, User
 
 
 @pytest.fixture(scope='session')
-def engine():
-    """
-    create an in-memory database that is available for use in the entire test session.
-    initialize the database with tables.
-    """
-    eng = create_engine('sqlite+pysqlite:///:memory:', future=True, echo=False)
+def app() -> Generator[Flask, None, None]:
+    # create a Flask test app using the test config
+    config = get_config('test')
+    app = create_app(config)
 
-    # initialize all database objects
-    Base.metadata.create_all(eng)
+    # ensure the cache uses a simple in-memory backend for tests
+    app.config['CACHE_TYPE'] = 'SimpleCache'
+    cache.init_app(app)
 
-    yield eng
-    eng.dispose()
+    # create tables
+    with app.app_context():
+        _db.create_all()
 
+    yield app
 
-@pytest.fixture(scope='session')
-def connection(engine):
-    with engine.connect() as conn:
-        yield conn
+    # teardown
+    with app.app_context():
+        _db.drop_all()
 
 
 @pytest.fixture(scope='function')
-def db_session(connection, monkeypatch) -> Generator[Session]:
+def client(app: Flask):
+    with app.test_client() as client:
+        yield client
+
+
+@pytest.fixture(scope='function')
+def db_session(app: Flask) -> Generator:
+    """Provide a transactional scope around a series of operations for tests."""
+    # push an application context so Flask-SQLAlchemy can access the app
+    ctx = app.app_context()
+    ctx.push()
+
+    connection = _db.engine.connect()
     trans = connection.begin()
 
-    TestingSessionLocal = sessionmaker(bind=connection, autoflush=False, autocommit=False, expire_on_commit=False)
+    options = dict(bind=connection, binds={})
+    sess = _db.create_scoped_session(options=options)
 
-    session = TestingSessionLocal()
-    _populate_database(session)
-
-    monkeypatch.setattr(db, 'get_session', lambda: session, raising=True)
+    # override the session used by the app
+    _db.session = sess
 
     try:
-        yield session
-    finally:
-        trans.rollback()
-        session.close()
-
-
-def _populate_database(session):
-    try:
+        # seed some data
         admin_user = User(username='admin', password='admin', firstname='Admin', lastname='User', balance=1000.00)
-        session.add(admin_user)
+        sess.add(admin_user)
 
         securities = [
             Security(ticker='AAPL', issuer='Apple Inc.', price=150.00),
             Security(ticker='GOOGL', issuer='Alphabet Inc.', price=2800.00),
             Security(ticker='MSFT', issuer='Microsoft Corp.', price=300.00),
         ]
-        session.add_all(securities)
-    except Exception:
-        session.rollback()
+        sess.add_all(securities)
+        sess.commit()
+
+        yield sess
+
     finally:
-        session.commit()
+        trans.rollback()
+        connection.close()
+    _db.session.remove()
+    # pop the app context
+    ctx.pop()
