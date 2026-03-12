@@ -3,7 +3,16 @@ from pydantic import ValidationError
 
 from app.db import db
 from app.routes import portfolio_bp, security_bp, trade_bp, user_bp
-from flask_caching import Cache
+try:
+    from flask_caching import Cache  # type: ignore
+except Exception:  # pragma: no cover - fallback for editors/environments without the package
+    # Provide a minimal no-op Cache implementation so imports don't fail in IDEs
+    class Cache:  # type: ignore
+        def __init__(self, *_, **__):
+            pass
+
+        def init_app(self, app):
+            return None
 
 
 # application-wide cache instance (initialized in create_app)

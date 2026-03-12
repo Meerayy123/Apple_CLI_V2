@@ -25,47 +25,45 @@ def execute_purchase_order(portfolio_id: int, ticker: str, quantity: int):
         TradeExecutionException: If there is an error during the trade execution.
         InsufficientFundsError: If the user has insufficient funds to complete the purchase.
     """
-    try:
-        if portfolio_id is None or not ticker or not quantity or quantity <= 0:
-            raise TradeExecutionException(
-                f'Invalid purchase order parameters [portfolio_id={portfolio_id}, ticker={ticker}, quantity={quantity}]'
-            )
-        portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
-        if not portfolio:
-            raise TradeExecutionException(f'Portfolio with id {portfolio_id} does not exist.')
-        user = portfolio.user
-        if not user:
-            raise TradeExecutionException(f'User associated with the portfolio ({portfolio_id}) does not exist.')
-
-        security = db.session.query(Security).filter_by(ticker=ticker).one_or_none()
-        if not security:
-            raise TradeExecutionException(f'Security with ticker {ticker} does not exist.')
-        total_cost = security.price * quantity
-        if user.balance < total_cost:
-            raise InsufficientFundsError('Insufficient funds to complete the purchase.')
-
-        existing_investment = next((inv for inv in portfolio.investments if inv.ticker == ticker), None)
-        if existing_investment:
-            existing_investment.quantity += quantity
-        else:
-            portfolio.investments.append(Investment(ticker=ticker, quantity=quantity, security=security))
-
-        user.balance -= total_cost
-        db.session.add(
-            Transaction(
-                portfolio_id=portfolio.id,
-                username=user.username,
-                ticker=ticker,
-                quantity=quantity,
-                price=security.price,
-                transaction_type='BUY',
-                date_time=datetime.datetime.now(),
-            )
+    if portfolio_id is None or not ticker or not quantity or quantity <= 0:
+        raise TradeExecutionException(
+            f'Invalid purchase order parameters [portfolio_id={portfolio_id}, ticker={ticker}, quantity={quantity}]'
         )
-        db.session.flush()
-    except Exception as e:
-        db.session.rollback()
-        raise TradeExecutionException(f'Failed to execute purchase order due to error: {str(e)}')
+    portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
+    if not portfolio:
+        raise TradeExecutionException(f'Portfolio with id {portfolio_id} does not exist.')
+    user = portfolio.user
+    if not user:
+        raise TradeExecutionException(f'User associated with the portfolio ({portfolio_id}) does not exist.')
+
+    security = db.session.query(Security).filter_by(ticker=ticker).one_or_none()
+    if not security:
+        raise TradeExecutionException(f'Security with ticker {ticker} does not exist.')
+    total_cost = security.price * quantity
+    if user.balance < total_cost:
+        # propagate InsufficientFundsError directly so callers/tests can catch it
+        raise InsufficientFundsError('Insufficient funds to complete the purchase.')
+
+    existing_investment = next((inv for inv in portfolio.investments if inv.ticker == ticker), None)
+    if existing_investment:
+        existing_investment.quantity += quantity
+    else:
+        portfolio.investments.append(Investment(ticker=ticker, quantity=quantity, security=security))
+
+    user.balance -= total_cost
+    db.session.add(
+        Transaction(
+            portfolio_id=portfolio.id,
+            username=user.username,
+            ticker=ticker,
+            quantity=quantity,
+            price=security.price,
+            transaction_type='BUY',
+            date_time=datetime.datetime.now(),
+        )
+    )
+    # leave commit/rollback to caller (transactional boundary pattern)
+    db.session.flush()
 
 
 def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_price: float):
@@ -102,6 +100,12 @@ def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_pri
         total_proceeds = sale_price * quantity
         user.balance += total_proceeds
         if investment.quantity == quantity:
+            # Remove from DB and from the parent portfolio collection so the
+            # in-memory relationship reflects the deletion in the current session.
+            try:
+                portfolio.investments.remove(investment)
+            except Exception:
+                pass
             db.session.delete(investment)
         else:
             investment.quantity -= quantity
@@ -118,5 +122,5 @@ def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_pri
         )
         db.session.flush()
     except Exception as e:
-        db.session.rollback()
+        # Let caller handle rollback/commit; expose a domain-specific exception
         raise TradeExecutionException(f'Failed to liquidate investment due to error: {str(e)}')

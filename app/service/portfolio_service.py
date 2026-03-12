@@ -1,7 +1,9 @@
 from typing import List, Optional
 
 from app.db import db
+import app.database as database
 from app.models import Portfolio, User
+from app.service import trade_service
 
 
 class UnsupportedPortfolioOperationError(Exception):
@@ -18,49 +20,71 @@ def create_portfolio(name: str, description: str, user: User) -> int:
             f'Invalid input[name:{name}, description: {description}, user: {user}]. Please try again.'
         )
     portfolio = Portfolio(name=name, description=description, user=user)
+    session = None
     try:
-        db.session.add(portfolio)
-        db.session.flush()
+        session = database.get_session()
+        session.add(portfolio)
+        session.flush()
         return portfolio.id
     except Exception as e:
-        db.session.rollback()
+        # Let the caller (route) handle rollback/commit. Preserve a clear domain error.
         raise PortfolioOperationError(f'Failed to create portfolio due to error: {str(e)}')
 
 
 def get_portfolios_by_user(user: User) -> List[Portfolio]:
+    session = None
     try:
-        portfolios = db.session.query(Portfolio).filter_by(owner=user.username).all()
+        session = database.get_session()
+        portfolios = session.query(Portfolio).filter_by(owner=user.username).all()
         return portfolios
     except Exception as e:
-        db.session.rollback()
         raise PortfolioOperationError(f'Failed to retrieve portfolios due to error: {str(e)}')
 
 
 def get_all_portfolios() -> List[Portfolio]:
+    session = None
     try:
-        portfolios = db.session.query(Portfolio).all()
+        session = database.get_session()
+        portfolios = session.query(Portfolio).all()
         return portfolios
     except Exception as e:
-        db.session.rollback()
         raise PortfolioOperationError(f'Failed to retrieve portfolios due to error: {str(e)}')
 
 
 def get_portfolio_by_id(portfolio_id: int) -> Optional[Portfolio]:
+    session = None
     try:
-        portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
+        session = database.get_session()
+        portfolio = session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
         return portfolio
     except Exception as e:
-        db.session.rollback()
         raise PortfolioOperationError(f'Failed to retrieve portfolio due to error: {str(e)}')
 
 
 def delete_portfolio(portfolio_id: int):
+    session = None
     try:
-        portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
+        session = database.get_session()
+        portfolio = session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
         if not portfolio:
             raise UnsupportedPortfolioOperationError(f'Portfolio with id {portfolio_id} does not exist')
-        db.session.delete(portfolio)
-        db.session.flush()
+        session.delete(portfolio)
+        session.flush()
     except Exception as e:
-        db.session.rollback()
+        # Bubble up the original exception to the caller; let route handle rollback.
         raise e
+    # Removed internal rollback for tests that expect exceptions to bubble up
+
+def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_price: float):
+    """Delegate liquidation to the trade service and let exceptions bubble up for the caller/tests."""
+    return trade_service.liquidate_investment(portfolio_id, ticker, quantity, sale_price)
+
+
+def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_price: float):
+    # Delegate to trade_service and expose the specific error types
+    try:
+        return trade_service.liquidate_investment(portfolio_id, ticker, quantity, sale_price)
+    except trade_service.TradeExecutionException as e:
+        # Convert to local UnsupportedPortfolioOperationError for tests that expect it
+        raise UnsupportedPortfolioOperationError(str(e))
+
