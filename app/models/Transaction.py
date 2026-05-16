@@ -33,7 +33,9 @@ class Transaction(db.Model):
             'portfolio_id': self.portfolio_id,
             'ticker': self.ticker,
             'transaction_type': self.transaction_type,
+            'type': self.transaction_type,
             'quantity': self.quantity,
             'price': self.price,
             'date_time': self.date_time.isoformat(),
+            'timestamp': self.date_time.isoformat(),
         }

@@ -56,22 +56,27 @@ def db_session(app: Flask) -> Generator:
     trans = connection.begin()
 
     options = dict(bind=connection, binds={})
-    sess = _db.create_scoped_session(options=options)
+    sess = getattr(_db, 'create_scoped_session', getattr(_db, '_make_scoped_session'))(options=options)
+    
+    # Monkeypatch commit to flush so that tests don't commit the outer transaction
+    sess.commit = sess.flush
 
     # override the session used by the app
     _db.session = sess
 
     try:
         # seed some data
-        admin_user = User(username='admin', password='admin', firstname='Admin', lastname='User', balance=1000.00)
-        sess.add(admin_user)
+        if not sess.query(User).filter_by(username='admin').first():
+            admin_user = User(username='admin', password='admin', firstname='Admin', lastname='User', balance=1000.00)
+            sess.add(admin_user)
 
-        securities = [
+        for sec in [
             Security(ticker='AAPL', issuer='Apple Inc.', price=150.00),
             Security(ticker='GOOGL', issuer='Alphabet Inc.', price=2800.00),
             Security(ticker='MSFT', issuer='Microsoft Corp.', price=300.00),
-        ]
-        sess.add_all(securities)
+        ]:
+            if not sess.query(Security).filter_by(ticker=sec.ticker).first():
+                sess.add(sec)
         sess.commit()
 
         yield sess

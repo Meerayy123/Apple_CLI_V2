@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from app.db import db
 import app.database as database
-from app.models import Portfolio, User
+from app.models import Portfolio, User, Investment
 from app.service import trade_service
 
 
@@ -74,6 +74,16 @@ def delete_portfolio(portfolio_id: int):
         # Bubble up the original exception to the caller; let route handle rollback.
         raise e
     # Removed internal rollback for tests that expect exceptions to bubble up
+
+def get_holdings(portfolio_id: int) -> List[Investment]:
+    from app.models import Investment
+    session = None
+    try:
+        session = database.get_session()
+        holdings = session.query(Investment).filter_by(portfolio_id=portfolio_id).all()
+        return holdings
+    except Exception as e:
+        raise PortfolioOperationError(f'Failed to retrieve holdings due to error: {str(e)}')
 
 def liquidate_investment(portfolio_id: int, ticker: str, quantity: int, sale_price: float):
     """Delegate liquidation to the trade service and let exceptions bubble up for the caller/tests."""

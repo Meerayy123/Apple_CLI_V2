@@ -60,6 +60,18 @@ def test_get_portfolio_by_invalid_id(db_session):
     invalid_id = 9999
     assert portfolio_service.get_portfolio_by_id(invalid_id) is None
 
+def test_get_holdings(setup, db_session):
+    portfolio = setup["portfolio1"]
+    holdings = portfolio_service.get_holdings(portfolio.id)
+    assert len(holdings) == 1
+    assert holdings[0].ticker == "AAPL"
+    assert holdings[0].quantity == 10
+
+def test_get_holdings_empty(setup, db_session):
+    portfolio = setup["portfolio2"]
+    holdings = portfolio_service.get_holdings(portfolio.id)
+    assert len(holdings) == 0
+
 def test_create_portfolio(setup, db_session):
     user = setup["user"]
     user_portfolios_before = portfolio_service.get_portfolios_by_user(user)

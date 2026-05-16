@@ -37,3 +37,18 @@ def get_access_for_portfolio(portfolio_id: int):
         return db.session.query(PortfolioAccess).filter_by(portfolio_id=portfolio_id).all()
     except Exception as e:
         raise AccessError(str(e))
+
+
+def check_access(portfolio_id: int, username: str, role: Optional[str] = None) -> bool:
+    from app.models import Portfolio
+    portfolio = db.session.query(Portfolio).filter_by(id=portfolio_id).one_or_none()
+    if not portfolio:
+        return False
+    if portfolio.owner == username:
+        return True
+    
+    query = db.session.query(PortfolioAccess).filter_by(portfolio_id=portfolio_id, username=username)
+    if role:
+        query = query.filter_by(role=role)
+    access = query.first()
+    return access is not None
