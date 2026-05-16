@@ -1,19 +1,15 @@
-import { apiRequest } from './client';
+import { apiRequest } from "./client.js";
 
-export const getSecurities = async (auth) => {
-  return apiRequest('/securities/', {}, auth);
-};
+export const buy = (token, { portfolio_id, ticker, quantity }) =>
+  apiRequest(
+    "/trades/buy",
+    { method: "POST", body: JSON.stringify({ portfolio_id, ticker, quantity }) },
+    token
+  );
 
-export const buySecurity = async (portfolio_id, ticker, quantity, auth) => {
-  return apiRequest('/trades/buy', {
-    method: 'POST',
-    body: JSON.stringify({ portfolio_id, ticker, quantity }),
-  }, auth);
-};
-
-export const sellSecurity = async (portfolio_id, ticker, quantity, sale_price, auth) => {
-  return apiRequest('/trades/sell', {
-    method: 'POST',
-    body: JSON.stringify({ portfolio_id, ticker, quantity, sale_price }),
-  }, auth);
-};
+export const sell = (token, { portfolio_id, ticker, quantity }) =>
+  apiRequest(
+    "/trades/sell",
+    { method: "POST", body: JSON.stringify({ portfolio_id, ticker, quantity }) },
+    token
+  );

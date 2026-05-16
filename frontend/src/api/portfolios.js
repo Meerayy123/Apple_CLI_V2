@@ -1,30 +1,23 @@
-import { apiRequest } from './client';
+import { apiRequest } from "./client.js";
 
-export const getMyPortfolios = async (auth) => {
-  return apiRequest('/portfolios/me', {}, auth);
-};
+export const listMyPortfolios = (token) =>
+  apiRequest("/portfolios/me", { method: "GET" }, token);
 
-export const getPortfolioDetails = async (id, auth) => {
-  return apiRequest(`/portfolios/${id}`, {}, auth);
-};
+export const createPortfolio = (token, { username, name, description }) =>
+  apiRequest(
+    "/portfolios/",
+    { method: "POST", body: JSON.stringify({ username, name, description }) },
+    token
+  );
 
-export const getPortfolioHoldings = async (id, auth) => {
-  return apiRequest(`/portfolios/${id}/holdings`, {}, auth);
-};
+export const deletePortfolio = (token, portfolioId) =>
+  apiRequest(`/portfolios/${portfolioId}`, { method: "DELETE" }, token);
 
-export const getPortfolioTransactions = async (id, auth) => {
-  return apiRequest(`/portfolios/${id}/transactions`, {}, auth);
-};
+export const getPortfolio = (token, portfolioId) =>
+  apiRequest(`/portfolios/${portfolioId}`, { method: "GET" }, token);
 
-export const createPortfolio = async (data, auth) => {
-  return apiRequest('/portfolios/', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }, auth);
-};
+export const getHoldings = (token, portfolioId) =>
+  apiRequest(`/portfolios/${portfolioId}/holdings`, { method: "GET" }, token);
 
-export const deletePortfolio = async (id, auth) => {
-  return apiRequest(`/portfolios/${id}`, {
-    method: 'DELETE',
-  }, auth);
-};
+export const getTransactions = (token, portfolioId) =>
+  apiRequest(`/portfolios/${portfolioId}/transactions`, { method: "GET" }, token);
